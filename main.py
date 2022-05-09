@@ -1,7 +1,16 @@
-# This is a sample Python script.
+"""
+TO-DO
+---------------------------------------------------------------------------------------------------------
+1) Isotropic
+- Phase Grid
+- Temperature Grid
+- Update Temperature
+- Update Phase
+- Visualization
+-
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
+2) Anisotropic if above works
+"""
 
 
 def print_hi(name):
