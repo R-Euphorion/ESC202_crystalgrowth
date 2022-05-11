@@ -121,20 +121,26 @@ def main():
     alpha = 0.9     # element of interval (0, 1)
     gamma = 10      #
     epsilon = 0.01  # thickness of interface / motion of interface
+    epsilon_mean = 0.01
+    delta = 0.050
     tau = 0.0003    # time constant
+    theta_0 = 0
     a = 0.01        # noise amplitude
+    j = 4
     k = 1.4         # dimensionless latent heat
     dt = 0.0002     # timestep
-    steps = 5000    # steps
+    steps = 3000    # steps
     dx = 0.03       # grid size
 
-    nx = 100
-    ny = 400
+    nx = 300
+    ny = 300
 
-    seed_list = [[x, 0] for x in range(nx)]
-    #seed_list = [[150, 150]]
+    seed_border = [[50, 200] for x in range(nx)]
 
-    P, T = initialize(nx, ny, seed_list)
+    seed_list_middle = [[150, 150], [150, 151], [151, 151], [151, 150]]
+
+
+    P, T = initialize(nx, ny, seed_border)
     P_solved = crystal_solve(P, T)
     crystal_plot(P_solved)
 
