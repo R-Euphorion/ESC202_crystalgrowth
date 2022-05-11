@@ -67,6 +67,30 @@ def g_calc(P, M):
     return G
 
 
+def theta_calc(P):
+    P_padded = np.pad(P, ((1, 1), (1, 1)), mode="reflect")
+    p_jMinus = np.roll(P_padded, 1, axis=0)
+    p_jPlus = np.roll(P_padded, -1, axis=0)
+    p_iMunus = np.roll(P_padded, 1, axis=1)
+    p_iPlus = np.roll(P_padded, -1, axis=1)
+
+    Theta = np.arctan((p_jPlus - p_jMinus)/(p_iPlus - p_iMunus))
+
+    return Theta[1:-1, 1:-1]
+
+
+def epsilon_calc(Theta):
+    ones = np.ones_like(Theta)
+    epsilon = ones*epsilon_avg + epsilon_avg * delta * np.cos(j * (Theta - ones*theta_0))
+    epsilon_prime = -epsilon_avg * delta * j * np.sin(j * (Theta - ones*theta_0))
+    epsilon_squared =   (ones*epsilon_avg**2 + 2 * epsilon_avg**2 * delta * np.cos(j * (Theta - ones*theta_0))
+                        + epsilon_avg**2 * delta**2 * (np.cos(j * (Theta - ones*theta_0)))**2)
+
+    return epsilon, epsilon_prime, epsilon_squared
+
+
+
+
 def phase_update(P, T):
     M = m_calc(T)
     G = g_calc(P, M)
@@ -115,6 +139,10 @@ def main():
     global k
     global dt
     global dx
+    global delta
+    global j
+    global epsilon_avg
+    global theta_0
 
     global steps
 
@@ -131,6 +159,10 @@ def main():
     dt = 0.0002     # timestep
     steps = 3000    # steps
     dx = 0.03       # grid size
+    j = 4
+    delta = 0.05
+    epsilon_avg = 0.01
+    theta_0 = 0
 
     nx = 300
     ny = 300
