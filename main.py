@@ -20,6 +20,10 @@ from scipy.ndimage import convolve
 np.random.seed(1)
 
 
+def pad(M):
+    return np.pad(M, ((1, 1), (1, 1)), mode='reflect')
+
+
 def init_phase_grid(nx, ny):
     """
     Initialize 2D grid of -1 and 1 values.
@@ -69,14 +73,15 @@ def g_calc(P, M):
 
 def theta_calc(P):
     P_padded = np.pad(P, ((1, 1), (1, 1)), mode="reflect")
-    P_iMinus = np.roll(P_padded, 1, axis=0)
-    P_iPlus = np.roll(P_padded, -1, axis=0)
-    P_jMinus = np.roll(P_padded, 1, axis=1)
-    P_jPlus = np.roll(P_padded, -1, axis=1)
+    P_iMinus = np.roll(P_padded, 1, axis=0)[1:-1, 1:-1]
+    P_iPlus = np.roll(P_padded, -1, axis=0)[1:-1, 1:-1]
+    P_jMinus = np.roll(P_padded, 1, axis=1)[1:-1, 1:-1]
+    P_jPlus = np.roll(P_padded, -1, axis=1)[1:-1, 1:-1]
 
-    Theta = np.arctan((P_iPlus - P_iMinus)/(P_jPlus - P_jMinus))
+    Theta = np.where(P_jPlus - P_jMinus > 0, np.arctan((P_iPlus - P_iMinus)/(P_jPlus - P_jMinus)), 0)
+    #Theta = np.arctan((P_iPlus - P_iMinus)/(P_jPlus - P_jMinus))
 
-    return Theta[1:-1, 1:-1]
+    return Theta
 
 
 def epsilon_calc(Theta):
@@ -132,7 +137,7 @@ def d2_dydy(N_padded):
     N_jMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
     N = N_padded[1:-1, 1:-1]
 
-    N_dydy = N_jPlus - 2 * N + N_jMinus / dx ** 2
+    N_dydy = N_jPlus - 2 * N + N_jMinus / dy ** 2
 
     return N_dydy
 
@@ -140,11 +145,34 @@ def d2_dydy(N_padded):
 def phase_update(P, T):
     M = m_calc(T)
     G = g_calc(P, M)
+    Theta = theta_calc(P)
+    Epsilon, Epsilon_prime, Epsilon_squared = epsilon_calc(Theta)
 
-    stencil = np.array([[0, 1, 0],
-                        [1, -4, 1],
-                        [0, 1, 0]])/dx**2
-    P_new = P + epsilon**2*dt/tau*convolve(P, stencil, mode="reflect") + dt/tau*G
+    Epsilon_padded = pad(Epsilon)
+    Epsilon_prime_padded = pad(Epsilon_prime)
+    Epsilon_squared_padded = pad(Epsilon_squared)
+    P_padded = pad(P)
+
+    P_dx = d_dx(P_padded)
+    P_dy = d_dy(P_padded)
+    P_dxdx = d2_dxdx(P_padded)
+    P_dydy = d2_dydy(P_padded)
+    P_dxdy = d2_dxdy(P_padded)
+
+    Epsilon_dx = d_dx(Epsilon_padded)
+    Epsilon_dy = d_dy(Epsilon_padded)
+
+    Epsilon_prime_dx = d_dx(Epsilon_prime_padded)
+    Epsilon_prime_dy = d_dy(Epsilon_prime_padded)
+
+    Epsilon_squared_dx = d_dx(Epsilon_squared_padded)
+    Epsilon_squared_dy = d_dy(Epsilon_squared_padded)
+
+    DX = Epsilon*Epsilon_prime_dx*P_dy + Epsilon_prime*Epsilon_dx*P_dy + Epsilon*Epsilon_prime*P_dxdy
+    DY = Epsilon*Epsilon_prime_dy*P_dx + Epsilon_prime*Epsilon_dy*P_dx + Epsilon*Epsilon_prime*P_dxdy
+    GRAD = Epsilon_squared*P_dxdx + Epsilon_squared_dx*P_dx + Epsilon_squared*P_dydy + Epsilon_squared_dy*P_dy
+
+    P_new = P + dt/tau*(-DX + DY + GRAD + G)
     return P_new
 
 
@@ -186,6 +214,7 @@ def main():
     global k
     global dt
     global dx
+    global dy
     global delta
     global j
     global epsilon_avg
@@ -214,12 +243,11 @@ def main():
     nx = 300
     ny = 300
 
-    seed_border = [[50, 200] for x in range(nx)]
+    #seed_border = [[50, 200] for x in range(nx)]
 
-    seed_list_middle = [[150, 150], [150, 151], [151, 151], [151, 150]]
+    seed_middle = [[150, 150], [150, 151], [151, 151], [151, 150]]
 
-
-    P, T = initialize(nx, ny, seed_border)
+    P, T = initialize(nx, ny, seed_middle)
     P_solved = crystal_solve(P, T)
     crystal_plot(P_solved)
 
