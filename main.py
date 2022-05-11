@@ -73,14 +73,27 @@ def g_calc(P, M):
 
 def theta_calc(P):
     P_padded = np.pad(P, ((1, 1), (1, 1)), mode="reflect")
+    P_dx = d_dx(P_padded)
+    P_dy = d_dy(P_padded)
     P_iMinus = np.roll(P_padded, 1, axis=0)[1:-1, 1:-1]
     P_iPlus = np.roll(P_padded, -1, axis=0)[1:-1, 1:-1]
     P_jMinus = np.roll(P_padded, 1, axis=1)[1:-1, 1:-1]
     P_jPlus = np.roll(P_padded, -1, axis=1)[1:-1, 1:-1]
 
-    Theta = np.where(P_jPlus - P_jMinus > 0, np.arctan((P_iPlus - P_iMinus)/(P_jPlus - P_jMinus)), 0)
-    #Theta = np.arctan((P_iPlus - P_iMinus)/(P_jPlus - P_jMinus))
+    Theta = np.empty_like(P)
+    for m in range(Theta.shape[0]):
+        for n in range(Theta.shape[1]):
 
+            if P_dy[m, n] != 0:
+                Theta[m, n] = np.arctan(P_dx[m, n]/P_dy[m, n])
+            else:
+                Theta[m, n] = 0
+            """
+            if P_dy[m,n] != 0 and P_dx[m,n] != 0:
+                Theta[m, n] = np.arccos(P_dy[m, n]/np.sqrt((P_dy[m,n]**2+P_dx[m,n]**2)))
+            else:
+                Theta[m, n] = np.pi/2
+            """
     return Theta
 
 
@@ -88,7 +101,7 @@ def epsilon_calc(Theta):
     Ones = np.ones_like(Theta)
     Epsilon = Ones*epsilon_avg + epsilon_avg * delta * np.cos(j * (Theta - Ones*theta_0))
     Epsilon_prime = -epsilon_avg * delta * j * np.sin(j * (Theta - Ones*theta_0))
-    Epsilon_squared = epsilon**2
+    Epsilon_squared = Epsilon**2
 
     return Epsilon, Epsilon_prime, Epsilon_squared
 
@@ -96,7 +109,7 @@ def epsilon_calc(Theta):
 def d_dx(N_padded):
     N_iPlus = np.roll(N_padded, -1, axis=0)[1:-1, 1:-1]
     N_iMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
-    N_x = N_iPlus - N_iMinus / 2 / dx
+    N_x = (N_iPlus - N_iMinus) / 2 / dx
 
     return N_x
 
@@ -104,7 +117,7 @@ def d_dx(N_padded):
 def d_dy(N_padded):
     N_jPlus = np.roll(N_padded, -1, axis=1)[1:-1, 1:-1]
     N_jMinus = np.roll(N_padded, 1, axis=1)[1:-1, 1:-1]
-    N_y = N_jPlus - N_jMinus / 2 / dy
+    N_y = (N_jPlus - N_jMinus) / 2 / dy
 
     return N_y
 
@@ -117,7 +130,7 @@ def d2_dxdy(N_padded):
     N_iPlus_jMinus = np.roll(N_jMinus, -1, axis=0)[1:-1, 1:-1]
     N_iMinus_jMinus = np.roll(N_jMinus, 1, axis=0)[1:-1, 1:-1]
 
-    N_dxdy = N_iPlus_jPlus - N_iMinus_jPlus - N_iPlus_jMinus - N_iMinus_jMinus / 4 / dx / dy
+    N_dxdy = (N_iPlus_jPlus - N_iMinus_jPlus - N_iPlus_jMinus - N_iMinus_jMinus) / 4 / dx / dy
 
     return N_dxdy
 
@@ -127,17 +140,17 @@ def d2_dxdx(N_padded):
     N_iMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
     N = N_padded[1:-1, 1:-1]
 
-    N_dxdx = N_iPlus - 2 * N + N_iMinus / dx**2
+    N_dxdx = (N_iPlus - 2 * N + N_iMinus) / dx**2
 
     return N_dxdx
 
 
 def d2_dydy(N_padded):
-    N_jPlus = np.roll(N_padded, -1, axis=0)[1:-1, 1:-1]
-    N_jMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
+    N_jPlus = np.roll(N_padded, -1, axis=1)[1:-1, 1:-1]
+    N_jMinus = np.roll(N_padded, 1, axis=1)[1:-1, 1:-1]
     N = N_padded[1:-1, 1:-1]
 
-    N_dydy = N_jPlus - 2 * N + N_jMinus / dy ** 2
+    N_dydy = (N_jPlus - 2 * N + N_jMinus) / dy ** 2
 
     return N_dydy
 
@@ -235,17 +248,18 @@ def main():
     dt = 0.0002     # timestep
     steps = 3000    # steps
     dx = 0.03       # grid size
-    j = 4
-    delta = 0.05
+    dy = 0.03
+    j = 6
+    delta = 0.04
     epsilon_avg = 0.01
-    theta_0 = 0
+    theta_0 = np.pi/2
 
-    nx = 300
-    ny = 300
+    nx = 100
+    ny = 100
 
     #seed_border = [[50, 200] for x in range(nx)]
 
-    seed_middle = [[150, 150], [150, 151], [151, 151], [151, 150]]
+    seed_middle = [[50, 50], [50, 51], [51, 50], [51, 51]]
 
     P, T = initialize(nx, ny, seed_middle)
     P_solved = crystal_solve(P, T)
