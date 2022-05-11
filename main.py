@@ -54,46 +54,93 @@ def random_thermal_noise(size):
 
 
 def m_calc(T):
-    ones = np.ones_like(T)
-    M = alpha/np.pi*np.arctan(gamma*(ones-T))
+    Ones = np.ones_like(T)
+    M = alpha/np.pi*np.arctan(gamma*(Ones-T))
     return M
 
 
 def g_calc(P, M):
     random_noise = random_thermal_noise(P.shape)
-    ones = np.ones_like(P)
+    Ones = np.ones_like(P)
 
-    G = P*(ones-P)*(P-0.5*ones+M)+a*P*(ones-P)*random_noise
+    G = P*(Ones-P)*(P-0.5*Ones+M)+a*P*(Ones-P)*random_noise
     return G
 
 
 def theta_calc(P):
     P_padded = np.pad(P, ((1, 1), (1, 1)), mode="reflect")
-    p_jMinus = np.roll(P_padded, 1, axis=0)
-    p_jPlus = np.roll(P_padded, -1, axis=0)
-    p_iMunus = np.roll(P_padded, 1, axis=1)
-    p_iPlus = np.roll(P_padded, -1, axis=1)
+    P_iMinus = np.roll(P_padded, 1, axis=0)
+    P_iPlus = np.roll(P_padded, -1, axis=0)
+    P_jMinus = np.roll(P_padded, 1, axis=1)
+    P_jPlus = np.roll(P_padded, -1, axis=1)
 
-    Theta = np.arctan((p_jPlus - p_jMinus)/(p_iPlus - p_iMunus))
+    Theta = np.arctan((P_iPlus - P_iMinus)/(P_jPlus - P_jMinus))
 
     return Theta[1:-1, 1:-1]
 
 
 def epsilon_calc(Theta):
-    ones = np.ones_like(Theta)
-    epsilon = ones*epsilon_avg + epsilon_avg * delta * np.cos(j * (Theta - ones*theta_0))
-    epsilon_prime = -epsilon_avg * delta * j * np.sin(j * (Theta - ones*theta_0))
-    epsilon_squared =   (ones*epsilon_avg**2 + 2 * epsilon_avg**2 * delta * np.cos(j * (Theta - ones*theta_0))
-                        + epsilon_avg**2 * delta**2 * (np.cos(j * (Theta - ones*theta_0)))**2)
+    Ones = np.ones_like(Theta)
+    Epsilon = Ones*epsilon_avg + epsilon_avg * delta * np.cos(j * (Theta - Ones*theta_0))
+    Epsilon_prime = -epsilon_avg * delta * j * np.sin(j * (Theta - Ones*theta_0))
+    Epsilon_squared = epsilon**2
 
-    return epsilon, epsilon_prime, epsilon_squared
+    return Epsilon, Epsilon_prime, Epsilon_squared
 
 
+def d_dx(N_padded):
+    N_iPlus = np.roll(N_padded, -1, axis=0)[1:-1, 1:-1]
+    N_iMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
+    N_x = N_iPlus - N_iMinus / 2 / dx
+
+    return N_x
+
+
+def d_dy(N_padded):
+    N_jPlus = np.roll(N_padded, -1, axis=1)[1:-1, 1:-1]
+    N_jMinus = np.roll(N_padded, 1, axis=1)[1:-1, 1:-1]
+    N_y = N_jPlus - N_jMinus / 2 / dy
+
+    return N_y
+
+
+def d2_dxdy(N_padded):
+    N_jPlus = np.roll(N_padded, -1, axis=1)
+    N_iPlus_jPlus = np.roll(N_jPlus, -1, axis=0)[1:-1, 1:-1]
+    N_iMinus_jPlus = np.roll(N_jPlus, 1, axis=0)[1:-1, 1:-1]
+    N_jMinus = np.roll(N_padded, 1, axis=1)
+    N_iPlus_jMinus = np.roll(N_jMinus, -1, axis=0)[1:-1, 1:-1]
+    N_iMinus_jMinus = np.roll(N_jMinus, 1, axis=0)[1:-1, 1:-1]
+
+    N_dxdy = N_iPlus_jPlus - N_iMinus_jPlus - N_iPlus_jMinus - N_iMinus_jMinus / 4 / dx / dy
+
+    return N_dxdy
+
+
+def d2_dxdx(N_padded):
+    N_iPlus = np.roll(N_padded, -1, axis=0)[1:-1, 1:-1]
+    N_iMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
+    N = N_padded[1:-1, 1:-1]
+
+    N_dxdx = N_iPlus - 2 * N + N_iMinus / dx**2
+
+    return N_dxdx
+
+
+def d2_dydy(N_padded):
+    N_jPlus = np.roll(N_padded, -1, axis=0)[1:-1, 1:-1]
+    N_jMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
+    N = N_padded[1:-1, 1:-1]
+
+    N_dydy = N_jPlus - 2 * N + N_jMinus / dx ** 2
+
+    return N_dydy
 
 
 def phase_update(P, T):
     M = m_calc(T)
     G = g_calc(P, M)
+
     stencil = np.array([[0, 1, 0],
                         [1, -4, 1],
                         [0, 1, 0]])/dx**2
