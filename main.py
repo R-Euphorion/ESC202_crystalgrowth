@@ -15,13 +15,12 @@ TO-DO
 
 import numpy as np
 from matplotlib import pyplot as plt
-from scipy.ndimage import convolve
 from numba import jit
 
 np.random.seed(1)
 
 
-@jit
+@jit(nopython=True)
 def pad(M):
     M_new = np.zeros((nx+2, ny+2))
 
@@ -39,7 +38,7 @@ def pad(M):
     return M_new
 
 
-@jit
+@jit(nopython=True)
 def roll(A, step, axis=0):
     if axis == 0:
         A_out = np.roll(A, step*(nx+2))
@@ -62,7 +61,7 @@ def init_phase_grid(nx, ny):
     return P
 
 
-@jit
+#@jit
 def init_temp_grid(nx, ny):
     T = np.zeros((nx, ny))
     return T
@@ -74,7 +73,7 @@ def add_seed(P, seed_list):
         P[seed[0], seed[1]] = 1
 
 
-@jit
+#@jit
 def initialize(nx, ny, seed_list):
     P = init_phase_grid(nx, ny)
     T = init_temp_grid(nx, ny)
@@ -82,20 +81,20 @@ def initialize(nx, ny, seed_list):
     return P, T
 
 
-@jit
+@jit(nopython=True)
 def random_thermal_noise(size):
     random_noise = 0.5 - np.random.random((size[0], size[1]))
     return random_noise
 
 
-@jit
+@jit(nopython=True)
 def m_calc(T):
     Ones = np.ones_like(T)
     M = alpha/np.pi*np.arctan(gamma*(Ones-T))
     return M
 
 
-@jit
+@jit(nopython=True)
 def g_calc(P, M):
     random_noise = random_thermal_noise(P.shape)
     Ones = np.ones_like(P)
@@ -104,7 +103,7 @@ def g_calc(P, M):
     return G
 
 
-@jit
+@jit(nopython=True)
 def theta_calc(P):
     P_padded = pad(P)
     P_dx = d_dx(P_padded)
@@ -131,7 +130,7 @@ def theta_calc(P):
     return Theta
 
 
-@jit
+@jit(nopython=True)
 def epsilon_calc(Theta):
     Ones = np.ones_like(Theta)
     Epsilon = Ones*epsilon_avg + epsilon_avg * delta * np.cos(j * (Theta - Ones*theta_0))
@@ -141,7 +140,7 @@ def epsilon_calc(Theta):
     return Epsilon, Epsilon_prime, Epsilon_squared
 
 
-@jit
+@jit(nopython=True)
 def d_dx(N_padded):
     N_iPlus = roll(N_padded, -1, axis=0)[1:-1, 1:-1]
     N_iMinus = roll(N_padded, 1, axis=0)[1:-1, 1:-1]
@@ -150,7 +149,7 @@ def d_dx(N_padded):
     return N_x
 
 
-@jit
+@jit(nopython=True)
 def d_dy(N_padded):
     N_jPlus = roll(N_padded, -1, axis=1)[1:-1, 1:-1]
     N_jMinus = roll(N_padded, 1, axis=1)[1:-1, 1:-1]
@@ -159,7 +158,7 @@ def d_dy(N_padded):
     return N_y
 
 
-@jit
+@jit(nopython=True)
 def d2_dxdy(N_padded):
     N_jPlus = roll(N_padded, -1, axis=1)
     N_iPlus_jPlus = roll(N_jPlus, -1, axis=0)[1:-1, 1:-1]
@@ -173,7 +172,7 @@ def d2_dxdy(N_padded):
     return N_dxdy
 
 
-@jit
+@jit(nopython=True)
 def d2_dxdx(N_padded):
     N_iPlus = roll(N_padded, -1, axis=0)[1:-1, 1:-1]
     N_iMinus = roll(N_padded, 1, axis=0)[1:-1, 1:-1]
@@ -184,7 +183,7 @@ def d2_dxdx(N_padded):
     return N_dxdx
 
 
-@jit
+@jit(nopython=True)
 def d2_dydy(N_padded):
     N_jPlus = roll(N_padded, -1, axis=1)[1:-1, 1:-1]
     N_jMinus = roll(N_padded, 1, axis=1)[1:-1, 1:-1]
@@ -195,7 +194,7 @@ def d2_dydy(N_padded):
     return N_dydy
 
 
-@jit
+@jit(nopython=True)
 def phase_update(P, T):
     M = m_calc(T)
     G = g_calc(P, M)
@@ -230,16 +229,18 @@ def phase_update(P, T):
     return P_new
 
 
-@jit
+@jit(nopython=True)
 def temp_update(T, P, P_new):
-    stencil = np.array([[0, 1, 0],
-                        [1, -4, 1],
-                        [0, 1, 0]])/dx**2
-    T_new = T + dt*convolve(T, stencil, mode="reflect") + k*(P_new - P)
+    T_padded = pad(T)
+    T_iMinus = roll(T_padded, 1, 0)[1:-1, 1:-1]
+    T_iPlus = roll(T_padded, -1, 0)[1:-1, 1:-1]
+    T_jMinus = roll(T_padded, 1, 1)[1:-1, 1:-1]
+    T_jPlus = roll(T_padded, -1, 1)[1:-1, 1:-1]
+    T_new = T + dt*(T_iMinus+T_iPlus+T_jMinus+T_jPlus-4*T)/dx**2 + k*(P_new - P)
     return T_new
 
 
-@jit
+@jit(nopython=True)
 def crystal_solve(P, T):
     for i in range(steps):
         P_new = phase_update(P, T)
@@ -249,7 +250,6 @@ def crystal_solve(P, T):
     return P
 
 
-@jit
 def crystal_plot(P):
     plt.imshow(P, cmap="binary")
     plt.colorbar()
@@ -290,7 +290,7 @@ def main():
     j = 6
     k = 2.0         # dimensionless latent heat
     dt = 0.0002     # timestep
-    steps = 100    # steps
+    steps = 2000    # steps
     dx = 0.03       # grid size
     dy = 0.03
     j = 5
@@ -298,8 +298,8 @@ def main():
     epsilon_avg = 0.01
     theta_0 = np.pi/2
 
-    nx = 300
-    ny = 300
+    nx = 500
+    ny = 500
 
     #seed_border = [[50, 200] for x in range(nx)]
 
