@@ -16,14 +16,41 @@ TO-DO
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.ndimage import convolve
+from numba import jit
 
 np.random.seed(1)
 
 
+@jit
 def pad(M):
-    return np.pad(M, ((1, 1), (1, 1)), mode='reflect')
+    M_new = np.zeros((nx+2, ny+2))
+
+    M_new[1:-1, 1:-1] = M
+
+    M_new[0, 1:-1] = M[1, :]
+    M_new[-1, 1:-1] = M[-2, :]
+    M_new[1:-1, 0] = M[:, 1]
+    M_new[1:-1, -1] = M[:, -2]
+
+    M_new[0, 0] = M[1, 1]
+    M_new[0, -1] = M[1, -2]
+    M_new[-1, 0] = M[-2, 1]
+    M_new[-1, -1] = M[-2, -2]
+    return M_new
 
 
+@jit
+def roll(A, step, axis=0):
+    if axis == 0:
+        A_out = np.roll(A, step*(nx+2))
+        return A_out
+    else:
+        A_out = np.roll(A.T, step*(ny+2))
+        A_out = A_out.T
+        return A_out
+
+
+#@jit
 def init_phase_grid(nx, ny):
     """
     Initialize 2D grid of -1 and 1 values.
@@ -35,16 +62,19 @@ def init_phase_grid(nx, ny):
     return P
 
 
+@jit
 def init_temp_grid(nx, ny):
     T = np.zeros((nx, ny))
     return T
 
 
+#@jit
 def add_seed(P, seed_list):
     for seed in seed_list:
         P[seed[0], seed[1]] = 1
 
 
+@jit
 def initialize(nx, ny, seed_list):
     P = init_phase_grid(nx, ny)
     T = init_temp_grid(nx, ny)
@@ -52,17 +82,20 @@ def initialize(nx, ny, seed_list):
     return P, T
 
 
+@jit
 def random_thermal_noise(size):
     random_noise = 0.5 - np.random.random((size[0], size[1]))
     return random_noise
 
 
+@jit
 def m_calc(T):
     Ones = np.ones_like(T)
     M = alpha/np.pi*np.arctan(gamma*(Ones-T))
     return M
 
 
+@jit
 def g_calc(P, M):
     random_noise = random_thermal_noise(P.shape)
     Ones = np.ones_like(P)
@@ -71,14 +104,15 @@ def g_calc(P, M):
     return G
 
 
+@jit
 def theta_calc(P):
-    P_padded = np.pad(P, ((1, 1), (1, 1)), mode="reflect")
+    P_padded = pad(P)
     P_dx = d_dx(P_padded)
     P_dy = d_dy(P_padded)
-    P_iMinus = np.roll(P_padded, 1, axis=0)[1:-1, 1:-1]
-    P_iPlus = np.roll(P_padded, -1, axis=0)[1:-1, 1:-1]
-    P_jMinus = np.roll(P_padded, 1, axis=1)[1:-1, 1:-1]
-    P_jPlus = np.roll(P_padded, -1, axis=1)[1:-1, 1:-1]
+    P_iMinus = roll(P_padded, 1, axis=0)[1:-1, 1:-1]
+    P_iPlus = roll(P_padded, -1, axis=0)[1:-1, 1:-1]
+    P_jMinus = roll(P_padded, 1, axis=1)[1:-1, 1:-1]
+    P_jPlus = roll(P_padded, -1, axis=1)[1:-1, 1:-1]
 
     Theta = np.empty_like(P)
     for m in range(Theta.shape[0]):
@@ -97,6 +131,7 @@ def theta_calc(P):
     return Theta
 
 
+@jit
 def epsilon_calc(Theta):
     Ones = np.ones_like(Theta)
     Epsilon = Ones*epsilon_avg + epsilon_avg * delta * np.cos(j * (Theta - Ones*theta_0))
@@ -106,38 +141,42 @@ def epsilon_calc(Theta):
     return Epsilon, Epsilon_prime, Epsilon_squared
 
 
+@jit
 def d_dx(N_padded):
-    N_iPlus = np.roll(N_padded, -1, axis=0)[1:-1, 1:-1]
-    N_iMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
+    N_iPlus = roll(N_padded, -1, axis=0)[1:-1, 1:-1]
+    N_iMinus = roll(N_padded, 1, axis=0)[1:-1, 1:-1]
     N_x = (N_iPlus - N_iMinus) / 2 / dx
 
     return N_x
 
 
+@jit
 def d_dy(N_padded):
-    N_jPlus = np.roll(N_padded, -1, axis=1)[1:-1, 1:-1]
-    N_jMinus = np.roll(N_padded, 1, axis=1)[1:-1, 1:-1]
+    N_jPlus = roll(N_padded, -1, axis=1)[1:-1, 1:-1]
+    N_jMinus = roll(N_padded, 1, axis=1)[1:-1, 1:-1]
     N_y = (N_jPlus - N_jMinus) / 2 / dy
 
     return N_y
 
 
+@jit
 def d2_dxdy(N_padded):
-    N_jPlus = np.roll(N_padded, -1, axis=1)
-    N_iPlus_jPlus = np.roll(N_jPlus, -1, axis=0)[1:-1, 1:-1]
-    N_iMinus_jPlus = np.roll(N_jPlus, 1, axis=0)[1:-1, 1:-1]
-    N_jMinus = np.roll(N_padded, 1, axis=1)
-    N_iPlus_jMinus = np.roll(N_jMinus, -1, axis=0)[1:-1, 1:-1]
-    N_iMinus_jMinus = np.roll(N_jMinus, 1, axis=0)[1:-1, 1:-1]
+    N_jPlus = roll(N_padded, -1, axis=1)
+    N_iPlus_jPlus = roll(N_jPlus, -1, axis=0)[1:-1, 1:-1]
+    N_iMinus_jPlus = roll(N_jPlus, 1, axis=0)[1:-1, 1:-1]
+    N_jMinus = roll(N_padded, 1, axis=1)
+    N_iPlus_jMinus = roll(N_jMinus, -1, axis=0)[1:-1, 1:-1]
+    N_iMinus_jMinus = roll(N_jMinus, 1, axis=0)[1:-1, 1:-1]
 
     N_dxdy = (N_iPlus_jPlus - N_iMinus_jPlus - N_iPlus_jMinus - N_iMinus_jMinus) / 4 / dx / dy
 
     return N_dxdy
 
 
+@jit
 def d2_dxdx(N_padded):
-    N_iPlus = np.roll(N_padded, -1, axis=0)[1:-1, 1:-1]
-    N_iMinus = np.roll(N_padded, 1, axis=0)[1:-1, 1:-1]
+    N_iPlus = roll(N_padded, -1, axis=0)[1:-1, 1:-1]
+    N_iMinus = roll(N_padded, 1, axis=0)[1:-1, 1:-1]
     N = N_padded[1:-1, 1:-1]
 
     N_dxdx = (N_iPlus - 2 * N + N_iMinus) / dx**2
@@ -145,9 +184,10 @@ def d2_dxdx(N_padded):
     return N_dxdx
 
 
+@jit
 def d2_dydy(N_padded):
-    N_jPlus = np.roll(N_padded, -1, axis=1)[1:-1, 1:-1]
-    N_jMinus = np.roll(N_padded, 1, axis=1)[1:-1, 1:-1]
+    N_jPlus = roll(N_padded, -1, axis=1)[1:-1, 1:-1]
+    N_jMinus = roll(N_padded, 1, axis=1)[1:-1, 1:-1]
     N = N_padded[1:-1, 1:-1]
 
     N_dydy = (N_jPlus - 2 * N + N_jMinus) / dy ** 2
@@ -155,6 +195,7 @@ def d2_dydy(N_padded):
     return N_dydy
 
 
+@jit
 def phase_update(P, T):
     M = m_calc(T)
     G = g_calc(P, M)
@@ -189,6 +230,7 @@ def phase_update(P, T):
     return P_new
 
 
+@jit
 def temp_update(T, P, P_new):
     stencil = np.array([[0, 1, 0],
                         [1, -4, 1],
@@ -197,18 +239,19 @@ def temp_update(T, P, P_new):
     return T_new
 
 
+@jit
 def crystal_solve(P, T):
     for i in range(steps):
         P_new = phase_update(P, T)
         T_new = temp_update(T, P, P_new)
         P = P_new.copy()
         T = T_new.copy()
-    print(P)
     return P
 
 
+@jit
 def crystal_plot(P):
-    plt.imshow(P, cmap="coolwarm")
+    plt.imshow(P, cmap="binary")
     plt.colorbar()
     plt.show()
     return 0
@@ -218,6 +261,7 @@ def crystal_visualize():
     return 0
 
 
+#@jit
 def main():
     global alpha
     global gamma
@@ -234,32 +278,34 @@ def main():
     global theta_0
 
     global steps
+    global nx
+    global ny
 
     alpha = 0.9     # element of interval (0, 1)
     gamma = 10      #
-    epsilon = 0.01  # thickness of interface / motion of interface
-    epsilon_mean = 0.01
-    delta = 0.050
+    #epsilon = 0.01  # thickness of interface / motion of interface
     tau = 0.0003    # time constant
     theta_0 = 0
     a = 0.01        # noise amplitude
-    j = 4
-    k = 1.4         # dimensionless latent heat
+    j = 6
+    k = 2.0         # dimensionless latent heat
     dt = 0.0002     # timestep
-    steps = 3000    # steps
+    steps = 100    # steps
     dx = 0.03       # grid size
     dy = 0.03
-    j = 6
+    j = 5
     delta = 0.04
     epsilon_avg = 0.01
     theta_0 = np.pi/2
 
-    nx = 100
-    ny = 100
+    nx = 300
+    ny = 300
 
     #seed_border = [[50, 200] for x in range(nx)]
 
-    seed_middle = [[50, 50], [50, 51], [51, 50], [51, 51]]
+    #seed_middle = [[250, 250], [250, 251], [251, 250], [251, 251]]
+
+    seed_middle = [[149, 149], [151, 151], [149, 151], [151, 149]]
 
     P, T = initialize(nx, ny, seed_middle)
     P_solved = crystal_solve(P, T)
