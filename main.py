@@ -250,9 +250,14 @@ def crystal_solve(P, T):
 
 
 @jit
+def save_array_as_txt(P, filename):
+    np.savetxt(filename, P, delimiter=',')
+
+
+@jit
 def crystal_plot(P):
     plt.imshow(P, cmap="binary")
-    plt.colorbar()
+    plt.savefig(f"crystal{j}.png")
     plt.show()
     return 0
 
@@ -310,8 +315,8 @@ def main():
     seed_radius = 4
     seed_round = []
 
-    for i in range(5):
-        for j in range(5):
+    for i in range(seed_radius+1):
+        for j in range(seed_radius+1):
             if (i**2 + j**2) < seed_radius**2:
                 seed_round.append([seed_middle+i, seed_middle+j]) if [seed_middle+i, seed_middle+j] not in seed_round else seed_round
                 seed_round.append([seed_middle-i, seed_middle-j]) if [seed_middle-i, seed_middle-j] not in seed_round else seed_round
@@ -322,6 +327,7 @@ def main():
         j = anisotropy
         P, T = initialize(nx, ny, seed_round)
         P_solved = crystal_solve(P, T)
+        save_array_as_txt(P, f"P_{j}.txt")
         crystal_plot(P_solved)
 
     P, T = initialize(nx, ny, seed_round)
