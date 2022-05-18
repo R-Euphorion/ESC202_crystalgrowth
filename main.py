@@ -285,10 +285,8 @@ def main():
     gamma = 10      #
     #epsilon = 0.01  # thickness of interface / motion of interface
     tau = 0.0003    # time constant
-    theta_0 = 0
     a = 0.01        # noise amplitude
-    j = 6
-    k = 2.0         # dimensionless latent heat
+    k = 1.0         # dimensionless latent heat
     dt = 0.0002     # timestep
     steps = 100    # steps
     dx = 0.03       # grid size
@@ -305,9 +303,28 @@ def main():
 
     #seed_middle = [[250, 250], [250, 251], [251, 250], [251, 251]]
 
-    seed_middle = [[149, 149], [151, 151], [149, 151], [151, 149]]
+    #seed_middle = [[149, 149], [151, 151], [149, 151], [151, 149]]
 
-    P, T = initialize(nx, ny, seed_middle)
+    seed_middle = 250
+    seed_round_center = [250, 250]
+    seed_radius = 4
+    seed_round = []
+
+    for i in range(5):
+        for j in range(5):
+            if (i**2 + j**2) < seed_radius**2:
+                seed_round.append([seed_middle+i, seed_middle+j]) if [seed_middle+i, seed_middle+j] not in seed_round else seed_round
+                seed_round.append([seed_middle-i, seed_middle-j]) if [seed_middle-i, seed_middle-j] not in seed_round else seed_round
+                seed_round.append([seed_middle+i, seed_middle-j]) if [seed_middle+i, seed_middle-j] not in seed_round else seed_round
+                seed_round.append([seed_middle-i, seed_middle+j]) if [seed_middle-i, seed_middle+j] not in seed_round else seed_round
+
+    for anisotropy in [5]:
+        j = anisotropy
+        P, T = initialize(nx, ny, seed_round)
+        P_solved = crystal_solve(P, T)
+        crystal_plot(P_solved)
+
+    P, T = initialize(nx, ny, seed_round)
     P_solved = crystal_solve(P, T)
     crystal_plot(P_solved)
 
