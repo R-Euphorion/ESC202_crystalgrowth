@@ -16,6 +16,8 @@ TO-DO
 import numpy as np
 from matplotlib import pyplot as plt
 from numba import jit
+from matplotlib.animation import FuncAnimation
+from PIL import Image
 
 np.random.seed(1)
 
@@ -242,12 +244,25 @@ def temp_update(T, P, P_new):
 
 @jit(nopython=True)
 def crystal_solve(P, T):
+    solved_p = []
     for i in range(steps):
         P_new = phase_update(P, T)
         T_new = temp_update(T, P, P_new)
         P = P_new.copy()
         T = T_new.copy()
-    return P
+
+        # Save frame
+        if i%10 == 0:
+            solved_p.append(P)
+
+        # Print progress
+        if i%100 == 0:
+            progress = i/steps * 100
+            print(progress)
+
+    print("Calculation complete")
+
+    return solved_p
 
 
 def crystal_plot(P):
@@ -259,6 +274,48 @@ def crystal_plot(P):
 
 def crystal_visualize():
     return 0
+
+
+def step(P, T):
+    P_new = phase_update(P, T)
+    T_new = temp_update(T, P, P_new)
+    P = P_new.copy()
+    T = T_new.copy()
+
+    return P
+
+
+def init(A):
+    im.set_data(A)
+    return [im]
+
+
+# animation function.  This is called sequentially
+def animate(i):
+    a = im.get_array()
+    im.set_array(a)
+    return [im]
+
+
+def save_frames(frames, folder):
+    for i, frame in enumerate(frames):
+        cm = plt.get_cmap("binary")
+        img = Image.fromarray((cm(frame)[:, :, :3] * 255).astype(np.uint8))
+        img.save(f"{folder}/frame{i}.png")
+        # convert in folder using following command:
+        # ffmpeg -i frame%d.png -c:v libx264 -strict -2 -preset slow -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -f mp4 output.mp4
+
+    # Write description in folder
+    with open(f"{folder}/description.txt", "w") as f:
+        description = ""
+        description += f"Gridsize = {nx} / {ny}\n"
+        description += f"Steps = {steps}\n"
+        description += f"Symmetry j = {j}\n"
+        description += f"Latent Heat k = {k}\n"
+        description += f"Noise a = {a}"
+        f.write(description)
+
+    print("Files saved")
 
 
 #@jit
@@ -288,28 +345,34 @@ def main():
     theta_0 = 0
     a = 0.01        # noise amplitude
     j = 6
-    k = 2.0         # dimensionless latent heat
+    k = 1.6         # dimensionless latent heat
     dt = 0.0002     # timestep
-    steps = 2000    # steps
+    steps = 8000    # steps
     dx = 0.03       # grid size
     dy = 0.03
-    j = 5
+    j = 6
     delta = 0.04
     epsilon_avg = 0.01
     theta_0 = np.pi/2
 
-    nx = 500
-    ny = 500
+    nx = 800
+    ny = 800
 
     #seed_border = [[50, 200] for x in range(nx)]
 
     #seed_middle = [[250, 250], [250, 251], [251, 250], [251, 251]]
 
-    seed_middle = [[149, 149], [151, 151], [149, 151], [151, 149]]
+    seed_middle = [[399, 399], [401, 401], [399, 401], [401, 399]]
 
     P, T = initialize(nx, ny, seed_middle)
+
     P_solved = crystal_solve(P, T)
-    crystal_plot(P_solved)
+    #crystal_plot(P_solved[-1])
+
+    # Save frames to folder
+    folder = "plot5"
+
+    save_frames(P_solved, folder)
 
 
 if __name__ == '__main__':
