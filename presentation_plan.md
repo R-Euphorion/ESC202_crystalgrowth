@@ -1,0 +1,17 @@
+# Slides
+- [ ] Introduction
+  - [ ] What's the objective? (simulating water cristallization)
+  - [ ] Experimental findings (showing some pictures)
+- [ ] Method
+  - [ ] Isotropic
+  - [ ] Anisotropic
+  - [ ] Parameters
+- [ ] Results
+  - [ ] Window
+    - [ ] Comparison with paper
+    - [ ] Animation
+  - [ ] Dendrites
+    - [ ] Comparison with paper
+    - [ ] Animation
+    - [ ] Different symmetry
+- [ ] Conclustion
